@@ -7,153 +7,172 @@
 //
 
 #import "MapViewController.h"
+#import "Location.h"
+#import "LocationDetailsViewController.h"
 
+@implementation MapViewController {
+    NSArray *locations;
 
-@implementation MapViewController
-
-- (id)initWithStyle:(UITableViewStyle)style
-{
-    self = [super initWithStyle:style];
-    if (self) {
-        // Custom initialization
-    }
-    return self;
 }
 
-- (void)didReceiveMemoryWarning
+@synthesize managedObjectContext;
+@synthesize mapView;
+
+- (IBAction)showUser
 {
-    // Releases the view if it doesn't have a superview.
-    [super didReceiveMemoryWarning];
+    MKCoordinateRegion region = MKCoordinateRegionMakeWithDistance(self.mapView.userLocation.coordinate, 1000, 1000);
+    [self.mapView setRegion:[self.mapView regionThatFits:region] animated:YES];
+}
+
+- (MKCoordinateRegion)regionForAnnotations:(NSArray *)annotations
+{
+    MKCoordinateRegion region;
     
-    // Release any cached data, images, etc that aren't in use.
+    if ([annotations count] == 0) {
+        region = MKCoordinateRegionMakeWithDistance(self.mapView.userLocation.coordinate, 1000, 1000);
+        
+    } else if ([annotations count] == 1) {
+        id <MKAnnotation> annotation = [annotations lastObject];
+        region = MKCoordinateRegionMakeWithDistance(annotation.coordinate, 1000, 1000);
+        
+    } else {
+        CLLocationCoordinate2D topLeftCoord;
+        topLeftCoord.latitude = -90;
+        topLeftCoord.longitude = 180;
+        
+        CLLocationCoordinate2D bottomRightCoord;
+        bottomRightCoord.latitude = 90;
+        bottomRightCoord.longitude = -180;
+        
+        for (id <MKAnnotation> annotation in annotations)
+        {
+            topLeftCoord.latitude = fmax(topLeftCoord.latitude, annotation.coordinate.latitude);
+            topLeftCoord.longitude = fmin(topLeftCoord.longitude, annotation.coordinate.longitude);
+            bottomRightCoord.latitude = fmin(bottomRightCoord.latitude, annotation.coordinate.latitude);
+            bottomRightCoord.longitude = fmax(bottomRightCoord.longitude, annotation.coordinate.longitude);
+        }
+        
+        const double extraSpace = 1.1;
+        region.center.latitude = topLeftCoord.latitude - (topLeftCoord.latitude - bottomRightCoord.latitude) / 2.0;
+        region.center.longitude = topLeftCoord.longitude - (topLeftCoord.longitude - bottomRightCoord.longitude) / 2.0;
+        region.span.latitudeDelta = fabs(topLeftCoord.latitude - bottomRightCoord.latitude) * extraSpace;
+        region.span.longitudeDelta = fabs(topLeftCoord.longitude - bottomRightCoord.longitude) * extraSpace;
+    }
+    
+    return [self.mapView regionThatFits:region];
 }
 
-#pragma mark - View lifecycle
+- (IBAction)showLocations
+{
+    MKCoordinateRegion region = [self regionForAnnotations:locations];
+    [self.mapView setRegion:region animated:YES];
+}
+
+- (void)updateLocations
+{
+    NSEntityDescription *entity = [NSEntityDescription entityForName:@"Location" inManagedObjectContext:self.managedObjectContext];
+    
+    NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+    [fetchRequest setEntity:entity];
+    
+    NSError *error;
+    NSArray * foundObjects = [self.managedObjectContext executeFetchRequest:fetchRequest error:&error];
+    if (foundObjects == nil) {
+        FATAL_CORE_DATA_ERROR(error);
+        return;
+    }
+    
+    if (locations != nil) {  
+        [self.mapView removeAnnotations:locations];
+    }
+    
+    locations = foundObjects;
+    [self.mapView addAnnotations:locations];
+}
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-
-    // Uncomment the following line to preserve selection between presentations.
-    // self.clearsSelectionOnViewWillAppear = NO;
- 
-    // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-    // self.navigationItem.rightBarButtonItem = self.editButtonItem;
+    [self updateLocations];
+    
+    if ([locations count] > 0) {
+        [self showLocations];
+    }
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(contextDidChange:)
+                                                 name:NSManagedObjectContextObjectsDidChangeNotification
+                                               object:self.managedObjectContext];
 }
 
 - (void)viewDidUnload
 {
     [super viewDidUnload];
-    // Release any retained subviews of the main view.
-    // e.g. self.myOutlet = nil;
-}
-
-- (void)viewWillAppear:(BOOL)animated
-{
-    [super viewWillAppear:animated];
-}
-
-- (void)viewDidAppear:(BOOL)animated
-{
-    [super viewDidAppear:animated];
-}
-
-- (void)viewWillDisappear:(BOOL)animated
-{
-    [super viewWillDisappear:animated];
-}
-
-- (void)viewDidDisappear:(BOOL)animated
-{
-    [super viewDidDisappear:animated];
-}
-
-- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
-{
-    // Return YES for supported orientations
-    return (interfaceOrientation == UIInterfaceOrientationPortrait);
-}
-
-#pragma mark - Table view data source
-
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
-{
-#warning Potentially incomplete method implementation.
-    // Return the number of sections.
-    return 0;
-}
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
-{
-#warning Incomplete method implementation.
-    // Return the number of rows in the section.
-    return 0;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    static NSString *CellIdentifier = @"Cell";
+    locations = nil;
     
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
-    if (cell == nil) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSManagedObjectContextObjectsDidChangeNotification
+                                                  object:self.managedObjectContext];
+}
+
+#pragma mark - MKMapViewDelegate
+
+- (MKAnnotationView *)mapView:(MKMapView *)mapView viewForAnnotation:(id <MKAnnotation>)annotation
+{
+    if ([annotation isKindOfClass:[Location class]]) {
+        
+        static NSString *identifier = @"Location";
+        MKPinAnnotationView *annotationView = (MKPinAnnotationView *)[self.mapView dequeueReusableAnnotationViewWithIdentifier:identifier];
+        if (annotationView == nil) {
+            annotationView = [[MKPinAnnotationView alloc] initWithAnnotation:annotation reuseIdentifier:identifier];
+            annotationView.enabled = YES;
+            annotationView.canShowCallout = YES;
+            annotationView.animatesDrop = NO;
+            annotationView.pinColor = MKPinAnnotationColorGreen;
+            
+            UIButton *rightButton = [UIButton buttonWithType:UIButtonTypeDetailDisclosure];
+            [rightButton addTarget:self action:@selector(showLocationDetails:) forControlEvents:UIControlEventTouchUpInside];
+            annotationView.rightCalloutAccessoryView = rightButton;
+        } else {
+            annotationView.annotation = annotation;
+        }
+        
+        UIButton *button = (UIButton *)annotationView.rightCalloutAccessoryView;
+        button.tag = [locations indexOfObject:(Location *)annotation];
+        
+        return annotationView;
     }
     
-    // Configure the cell...
-    
-    return cell;
+    return nil;
 }
 
-/*
-// Override to support conditional editing of the table view.
-- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)showLocationDetails:(UIButton *)button
 {
-    // Return NO if you do not want the specified item to be editable.
-    return YES;
+    [self performSegueWithIdentifier:@"EditLocation" sender:button];
 }
-*/
 
-/*
-// Override to support editing the table view.
-- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender
 {
-    if (editingStyle == UITableViewCellEditingStyleDelete) {
-        // Delete the row from the data source
-        [tableView deleteRowsAtIndexPaths:[NSArray arrayWithObject:indexPath] withRowAnimation:UITableViewRowAnimationFade];
-    }   
-    else if (editingStyle == UITableViewCellEditingStyleInsert) {
-        // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-    }   
+    if ([segue.identifier isEqualToString:@"EditLocation"]) {
+        UINavigationController *navigationController = segue.destinationViewController;
+        LocationDetailsViewController *controller = (LocationDetailsViewController *)navigationController.topViewController;
+        controller.managedObjectContext = self.managedObjectContext;
+        
+        Location *location = [locations objectAtIndex:((UIButton *)sender).tag];
+        controller.locationToEdit = location;
+    }
 }
-*/
 
-/*
-// Override to support rearranging the table view.
-- (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)fromIndexPath toIndexPath:(NSIndexPath *)toIndexPath
+- (void)contextDidChange:(NSNotification *)notification
 {
+    [self updateLocations];
 }
-*/
 
-/*
-// Override to support conditional rearranging of the table view.
-- (BOOL)tableView:(UITableView *)tableView canMoveRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)dealloc
 {
-    // Return NO if you do not want the item to be re-orderable.
-    return YES;
-}
-*/
-
-#pragma mark - Table view delegate
-
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    // Navigation logic may go here. Create and push another view controller.
-    /*
-     <#DetailViewController#> *detailViewController = [[<#DetailViewController#> alloc] initWithNibName:@"<#Nib name#>" bundle:nil];
-     // ...
-     // Pass the selected object to the new view controller.
-     [self.navigationController pushViewController:detailViewController animated:YES];
-     */
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSManagedObjectContextObjectsDidChangeNotification
+                                                  object:self.managedObjectContext];
 }
 
 @end

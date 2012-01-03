@@ -7,153 +7,242 @@
 //
 
 #import "LocationDetailsViewController.h"
+#import "CategoryPickerViewController.h"
+#import "HudView.h"
+#import "Location.h"
+#import "LocationCell.h"
 
+@implementation LocationDetailsViewController {
+    NSString *descriptionText;
+    NSString *categoryName;
+    NSDate *date;
+}
 
-@implementation LocationDetailsViewController
+@synthesize descriptionTextView;
+@synthesize categoryLabel;
+@synthesize latitudeLabel;
+@synthesize longitudeLabel;
+@synthesize addressLabel;
+@synthesize dateLabel;
+@synthesize coordinate;
+@synthesize placemark;
+@synthesize managedObjectContext;
+@synthesize locationToEdit;
 
-- (id)initWithStyle:(UITableViewStyle)style
+- (id)initWithCoder:(NSCoder *)aDecoder
 {
-    self = [super initWithStyle:style];
-    if (self) {
-        // Custom initialization
+    if ((self = [super initWithCoder:aDecoder])) {
+        descriptionText = @"";
+        categoryName = @"No Category";
+        date = [NSDate date];
     }
     return self;
-}
-
-- (void)didReceiveMemoryWarning
-{
-    // Releases the view if it doesn't have a superview.
-    [super didReceiveMemoryWarning];
-    
-    // Release any cached data, images, etc that aren't in use.
-}
-
-#pragma mark - View lifecycle
-
-- (void)viewDidLoad
-{
-    [super viewDidLoad];
-
-    // Uncomment the following line to preserve selection between presentations.
-    // self.clearsSelectionOnViewWillAppear = NO;
- 
-    // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-    // self.navigationItem.rightBarButtonItem = self.editButtonItem;
 }
 
 - (void)viewDidUnload
 {
     [super viewDidUnload];
-    // Release any retained subviews of the main view.
-    // e.g. self.myOutlet = nil;
-}
-
-- (void)viewWillAppear:(BOOL)animated
-{
-    [super viewWillAppear:animated];
-}
-
-- (void)viewDidAppear:(BOOL)animated
-{
-    [super viewDidAppear:animated];
-}
-
-- (void)viewWillDisappear:(BOOL)animated
-{
-    [super viewWillDisappear:animated];
-}
-
-- (void)viewDidDisappear:(BOOL)animated
-{
-    [super viewDidDisappear:animated];
-}
-
-- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
-{
-    // Return YES for supported orientations
-    return (interfaceOrientation == UIInterfaceOrientationPortrait);
-}
-
-#pragma mark - Table view data source
-
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
-{
-#warning Potentially incomplete method implementation.
-    // Return the number of sections.
-    return 0;
-}
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
-{
-#warning Incomplete method implementation.
-    // Return the number of rows in the section.
-    return 0;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    static NSString *CellIdentifier = @"Cell";
     
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
-    if (cell == nil) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier];
+    self.descriptionTextView = nil;
+    self.categoryLabel = nil;
+    self.latitudeLabel = nil;
+    self.longitudeLabel = nil;
+    self.addressLabel = nil;
+    self.dateLabel = nil;
+}
+
+- (NSString *)formatDate:(NSDate *)theDate
+{
+    static NSDateFormatter *formatter = nil;
+    if (formatter == nil) {
+        formatter = [[NSDateFormatter alloc] init];
+        [formatter setDateStyle:NSDateFormatterMediumStyle];
+        [formatter setTimeStyle:NSDateFormatterShortStyle];
     }
     
-    // Configure the cell...
+    return [formatter stringFromDate:theDate];
+}
+
+- (NSString *)stringFromPlacemark:(CLPlacemark *)thePlacemark
+{
+    return [NSString stringWithFormat:@"%@ %@, %@, %@ %@, %@",
+            self.placemark.subThoroughfare, self.placemark.thoroughfare,
+            self.placemark.locality, self.placemark.administrativeArea,
+            self.placemark.postalCode, self.placemark.country];
+}
+
+- (void)setLocationToEdit:(Location *)newLocationToEdit
+{
+    if (locationToEdit != newLocationToEdit) {
+        locationToEdit = newLocationToEdit;
+        
+        descriptionText = locationToEdit.locationDescription;
+        categoryName = locationToEdit.category;
+        coordinate = CLLocationCoordinate2DMake([locationToEdit.latitude doubleValue], [locationToEdit.longitude doubleValue]);
+        placemark = locationToEdit.placemark;
+        date = locationToEdit.date;
+    }
+}
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
     
-    return cell;
+    if (self.locationToEdit != nil) {
+        self.title = @"Edit Location";
+        
+        self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+                                                  initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                                                  target:self
+                                                  action:@selector(done:)];
+    }
+    
+    self.descriptionTextView.text = descriptionText;
+    self.categoryLabel.text = categoryName;
+    
+    self.latitudeLabel.text = [NSString stringWithFormat:@"%.8f", self.coordinate.latitude];
+    self.longitudeLabel.text = [NSString stringWithFormat:@"%.8f", self.coordinate.longitude];
+    
+    if (self.placemark != nil) {
+        self.addressLabel.text = [self stringFromPlacemark:self.placemark];
+    } else {
+        self.addressLabel.text = @"No Address Found";
+    }
+    
+//    self.dateLabel.text = [self formatDate:[NSDate date]];
+    self.dateLabel.text = [self formatDate:date];
+    
+    UITapGestureRecognizer *gestureRecognizer = [[UITapGestureRecognizer alloc]
+        initWithTarget:self action:@selector(hideKeyboard:)];
+    
+    gestureRecognizer.cancelsTouchesInView = NO;
+    [self.tableView addGestureRecognizer:gestureRecognizer];
 }
 
-/*
-// Override to support conditional editing of the table view.
-- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)hideKeyboard:(UIGestureRecognizer *)gestureRecognizer
 {
-    // Return NO if you do not want the specified item to be editable.
-    return YES;
+    CGPoint point = [gestureRecognizer locationInView:self.tableView];
+    NSIndexPath *indexPath = [self.tableView indexPathForRowAtPoint:point];
+    
+    if (indexPath != nil && indexPath.section == 0 && indexPath.row == 0) {
+        return;
+    }
+    
+    [self.descriptionTextView resignFirstResponder];
 }
-*/
 
-/*
-// Override to support editing the table view.
-- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)closeScreen
 {
-    if (editingStyle == UITableViewCellEditingStyleDelete) {
-        // Delete the row from the data source
-        [tableView deleteRowsAtIndexPaths:[NSArray arrayWithObject:indexPath] withRowAnimation:UITableViewRowAnimationFade];
-    }   
-    else if (editingStyle == UITableViewCellEditingStyleInsert) {
-        // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-    }   
+    [self.presentingViewController dismissViewControllerAnimated:YES completion:nil];
 }
-*/
 
-/*
-// Override to support rearranging the table view.
-- (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)fromIndexPath toIndexPath:(NSIndexPath *)toIndexPath
+- (IBAction)done:(id)sender
 {
+    HudView *hudView = [HudView hudInView:self.navigationController.view animated:YES];
+    
+    Location *location = nil;
+    if (self.locationToEdit != nil) {
+        hudView.text = @"Updated";
+        location = self.locationToEdit;
+    } else {
+        hudView.text = @"Tagged";
+        location = [NSEntityDescription insertNewObjectForEntityForName:@"Location" inManagedObjectContext:self.managedObjectContext];
+    }
+    
+    location.locationDescription = descriptionText;    
+    
+/*    HudView *hudView = [HudView hudInView:self.navigationController.view animated:YES];
+    hudView.text = @"Tagged";
+    
+    Location *location = [NSEntityDescription insertNewObjectForEntityForName:@"Location" inManagedObjectContext:self.managedObjectContext];
+    
+    location.locationDescription = descriptionText;
+    location.category = categoryName;
+    location.latitude = [NSNumber numberWithDouble:self.coordinate.latitude];
+    location.longitude = [NSNumber numberWithDouble:self.coordinate.longitude];
+    location.date = date;
+    location.placemark = self.placemark;
+*/    
+    NSError *error;
+    if (![self.managedObjectContext save:&error]) {
+        FATAL_CORE_DATA_ERROR(error);
+        return;
+    }
+    
+    [self performSelector:@selector(closeScreen) withObject:nil afterDelay:0.6];
 }
-*/
 
-/*
-// Override to support conditional rearranging of the table view.
-- (BOOL)tableView:(UITableView *)tableView canMoveRowAtIndexPath:(NSIndexPath *)indexPath
+- (IBAction)cancel:(id)sender
 {
-    // Return NO if you do not want the item to be re-orderable.
-    return YES;
+    [self closeScreen];
 }
-*/
 
-#pragma mark - Table view delegate
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender
+{
+    if ([segue.identifier isEqualToString:@"PickCategory"]) {
+        CategoryPickerViewController *controller = segue.destinationViewController;
+        controller.delegate = self;
+        controller.selectedCategoryName = categoryName;
+    }
+}
+
+#pragma mark - UITableViewDelegate
+
+- (CGFloat)tableView:(UITableView *)theTableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    if (indexPath.section == 0 && indexPath.row == 0) {
+        return 88;
+    } else if (indexPath.section == 2 && indexPath.row == 2) {
+        
+        CGRect rect = CGRectMake(100, 10, 190, 1000);
+        self.addressLabel.frame = rect;
+        [self.addressLabel sizeToFit];
+        
+        rect.size.height = self.addressLabel.frame.size.height;
+        self.addressLabel.frame = rect;
+        
+        return self.addressLabel.frame.size.height + 20;
+    } else {
+        return 44;
+    }
+}
+
+- (NSIndexPath *)tableView:(UITableView *)tableView willSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    if (indexPath.section == 0 || indexPath.section == 1) {
+        return indexPath;
+    } else {
+        return nil;
+    }
+}
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    // Navigation logic may go here. Create and push another view controller.
-    /*
-     <#DetailViewController#> *detailViewController = [[<#DetailViewController#> alloc] initWithNibName:@"<#Nib name#>" bundle:nil];
-     // ...
-     // Pass the selected object to the new view controller.
-     [self.navigationController pushViewController:detailViewController animated:YES];
-     */
+    if (indexPath.section == 0 && indexPath.row == 0) {
+        [self.descriptionTextView becomeFirstResponder];
+    }
+}
+
+#pragma mark - UITextViewDelegate
+
+- (BOOL)textView:(UITextView *)theTextView shouldChangeTextInRange:(NSRange)range replacementText:(NSString *)text
+{
+    descriptionText = [theTextView.text stringByReplacingCharactersInRange:range withString:text];
+    return YES;
+}
+
+- (void)textViewDidEndEditing:(UITextView *)theTextView
+{
+    descriptionText = theTextView.text;
+}
+
+#pragma mark - CategoryPickerViewControllerDelegate
+
+- (void)categoryPicker:(CategoryPickerViewController *)picker didPickCategory:(NSString *)theCategoryName
+{
+    categoryName = theCategoryName;
+    self.categoryLabel.text = categoryName;
+    [self.navigationController popViewControllerAnimated:YES];
 }
 
 @end

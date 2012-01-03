@@ -9,14 +9,13 @@
 #import <Foundation/Foundation.h>
 #import <CoreData/CoreData.h>
 
+@interface Location : NSManagedObject <MKAnnotation>
 
-@interface Location : NSManagedObject
-
-@property (nonatomic, retain) NSNumber * latitude;
-@property (nonatomic, retain) UNKNOWN_TYPE longitude;
-@property (nonatomic, retain) NSString * date;
-@property (nonatomic, retain) UNKNOWN_TYPE locationDescription;
-@property (nonatomic, retain) id category;
-@property (nonatomic, retain) UNKNOWN_TYPE placemark;
+@property (nonatomic, retain) NSNumber *latitude;
+@property (nonatomic, retain) NSNumber *longitude;
+@property (nonatomic, retain) NSDate *date;
+@property (nonatomic, retain) NSString *locationDescription;
+@property (nonatomic, retain) NSString *category;
+@property (nonatomic, retain) CLPlacemark *placemark;
 
 @end

@@ -6,9 +6,11 @@
 //  Copyright (c) 2011 __MyCompanyName__. All rights reserved.
 //
 
-#import "LocaionCell.h"
+#import "LocationCell.h"
 
-@implementation LocaionCell
+@implementation LocationCell
+
+@synthesize descriptionLabel, addressLabel;
 
 - (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier
 {

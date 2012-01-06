@@ -11,6 +11,7 @@
 @class CategoryPickerViewController;
 
 @protocol CategoryPickerViewControllerDelegate <NSObject>
+
 - (void)categoryPicker:(CategoryPickerViewController *)picker didPickCategory:(NSString *)categoryName;
 @end
 

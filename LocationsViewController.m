@@ -10,11 +10,14 @@
 #import "LocationCell.h"
 #import "LocationDetailsViewController.h"
 #import "Location.h"
+#import "UIImage+Resize.h"
+#import "NSMutableString+AddText.h"
 
 @implementation LocationsViewController {
     NSFetchedResultsController *fetchedResultsController;
 }
 
+//@synthesize imageView;
 @synthesize managedObjectContext;
 
 #pragma mark - UITableViewDataSource
@@ -27,27 +30,43 @@
 
 - (void)configureCell:(UITableViewCell *)cell atIndexPath:(NSIndexPath *)indexPath
 {
-    LocationCell *locationCell = (LocationCell *)cell;
-    Location *location = [self->fetchedResultsController objectAtIndexPath:indexPath];
+	LocationCell *locationCell = (LocationCell *)cell;
+	Location *location = [self->fetchedResultsController objectAtIndexPath:indexPath];
     
-    if ([location.locationDescription length] > 0) {
-        locationCell.descriptionLabel.text = location.locationDescription;
-    } else {
-        locationCell.descriptionLabel.text = @"(No Description)";
-    }
+	if ([location.locationDescription length] > 0) {
+		locationCell.descriptionLabel.text = location.locationDescription;
+	} else {
+		locationCell.descriptionLabel.text = @"(No Description)";
+	}
     
-    if (location.placemark != nil) {
-        locationCell.addressLabel.text = [NSString stringWithFormat:@"%@ %@, %@",
-                                          location.placemark.subThoroughfare,
-                                          location.placemark.thoroughfare,
-                                          location.placemark.locality];
-    } else {
-        locationCell.addressLabel.text = [NSString stringWithFormat:
+	if (location.placemark != nil) {
+		// Make a string that is: "subThoroughfare thoroughfare, locality".
+        
+		NSMutableString *string = [NSMutableString stringWithCapacity:100];
+        
+		[string addText:location.placemark.subThoroughfare withSeparator:@""];
+		[string addText:location.placemark.thoroughfare withSeparator:@" "];
+		[string addText:location.placemark.locality withSeparator:@", "];
+        
+		locationCell.addressLabel.text = string;
+        
+	} else {
+		locationCell.addressLabel.text = [NSString stringWithFormat:
                                           @"Lat: %.8f, Long: %.8f",
                                           [location.latitude doubleValue],
                                           [location.longitude doubleValue]];
-    }
+	}
+    
+	UIImage *image = nil;
+	if ([location hasPhoto]) {
+		image = [location photoImage];
+		if (image != nil) {
+			image = [image resizedImageWithBounds:CGSizeMake(66, 66)];
+		}
+	}
+	locationCell.imageView.image = image;
 }
+
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
@@ -106,6 +125,8 @@
 
 - (void)viewDidUnload
 {
+    
+//    [self setImageView:nil];
     [super viewDidUnload];
     
     fetchedResultsController.delegate = nil;
@@ -192,6 +213,7 @@
 {
     if (editingStyle == UITableViewCellEditingStyleDelete) {
         Location *location = [self.fetchedResultsController objectAtIndexPath:indexPath];
+        [location removePhotoFile];
         [self.managedObjectContext deleteObject:location];
         
         NSError *error;
@@ -212,5 +234,10 @@
     id <NSFetchedResultsSectionInfo> sectionInfo = [[self.fetchedResultsController sections] objectAtIndex:section];
     return [sectionInfo name];
 }
-
+/*
+- (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    cell.contentView.backgroundColor = [UIColor blueColor];
+}
+*/
 @end

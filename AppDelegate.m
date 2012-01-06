@@ -121,10 +121,14 @@
     UINavigationController *navigationController = (UINavigationController *)[[tabBarController viewControllers] objectAtIndex:0];
     CurrentLocationViewController *currentLocationViewController = (CurrentLocationViewController *)[[navigationController viewControllers] objectAtIndex:0];
     currentLocationViewController.managedObjectContext = self.managedObjectContext;
+    
+//    return YES;
 
     navigationController = (UINavigationController *)[[tabBarController viewControllers] objectAtIndex:1];
     LocationsViewController *locationsViewController = (LocationsViewController *)[[navigationController viewControllers] objectAtIndex:0];
     locationsViewController.managedObjectContext = self.managedObjectContext;
+    
+//    return YES;
 
     MapViewController *mapViewController = (MapViewController *)[[tabBarController viewControllers] objectAtIndex:2];
     mapViewController.managedObjectContext = self.managedObjectContext;
@@ -150,7 +154,5 @@
 {
     abort();
 }
-
-
 
 @end
